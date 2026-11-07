@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
   Box, Card, CardContent, Typography, Chip, CircularProgress,
-  LinearProgress, Button, Grid, Select, MenuItem, FormControl, InputLabel,
-  useTheme, useMediaQuery
+  LinearProgress, Grid, Select, MenuItem, FormControl, InputLabel,
+  useTheme
 } from '@mui/material'
 import WhatshotIcon from '@mui/icons-material/Whatshot'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -12,15 +12,20 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import SchoolIcon from '@mui/icons-material/School'
 import {
   fetchLevelProgress, fetchWeakestWords, fetchWordsDueForReview,
-  fetchStreak, fetchDailyActivity, fetchRecentSessions, fetchTotalWordsPerLevel, fetchProfile
+  fetchStreak, fetchDailyActivity, fetchRecentSessions, fetchTotalWordsPerLevel
 } from '../utils/statsService'
+import StatsDashboard from './StatsDashboard'
 
 const NAVY = '#1a3a5c'
 
 export default function StatsMode({ userId }) {
+  if (!userId) return <Typography>Sign in to view your statistics.</Typography>
+  return <StatsDashboard key={userId} userId={userId} practiceStats={<PracticeStats userId={userId} />} />
+}
+
+function PracticeStats({ userId }) {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [loading, setLoading] = useState(true)
   const [selectedLevel, setSelectedLevel] = useState('N5')

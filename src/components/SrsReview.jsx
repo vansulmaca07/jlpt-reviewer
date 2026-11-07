@@ -97,7 +97,7 @@ function SrsReview({ userId, settings, onBack }) {
       })
       .catch(err => {
         console.error('loadSrsSession error:', err)
-        if (!cancelled) setLoadError('Hindi ma-load ang SRS data. Na-run na ba ang migration/28_srs_fsrs_tables.sql sa Supabase?')
+        if (!cancelled) setLoadError('Could not load SRS data. Check your connection and run migration/28_srs_fsrs_tables.sql in Supabase if needed.')
       })
       .finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
@@ -120,7 +120,7 @@ function SrsReview({ userId, settings, onBack }) {
   function enqueueSave(task) {
     saveChain.current = saveChain.current.then(task).catch(err => {
       console.error('SRS save error:', err)
-      setSaveError('May hindi na-save sa database. Check your connection.')
+      setSaveError('Some review data could not be saved. Check your connection.')
     })
   }
 
@@ -184,10 +184,10 @@ function SrsReview({ userId, settings, onBack }) {
       <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'center', mt: isMobile ? 2 : 4 }}>
         <Typography variant="h4" mb={1}>🎉</Typography>
         <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight="bold" mb={1}>
-          {reviewedCount + tally.known === 0 ? 'Walang due ngayon!' : 'Tapos na ang review ngayong araw!'}
+          {reviewedCount + tally.known === 0 ? 'No cards due today!' : "Today's review is complete!"}
         </Typography>
         <Typography color="text.secondary" mb={2} fontSize="13px">
-          Bumalik bukas. Ang FSRS na ang bahala kung kailan lalabas ulit ang bawat salita.
+          Come back tomorrow. FSRS schedules when each word will appear again.
         </Typography>
         {saveError && <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>{saveError}</Alert>}
         <Card sx={{ mb: 3 }}>

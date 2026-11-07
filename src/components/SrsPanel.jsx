@@ -29,6 +29,9 @@ function SrsPanel({ userId, books, onStart }) {
     loadSrsSettings(userId).then(s => {
       setSettings(s)
       setNewPerDayInput(String(s.newPerDay))
+    }).catch(error => {
+      console.error('loadSrsSettings error:', error)
+      setSummaryError('Could not load SRS settings. Check your connection and reload.')
     })
   }, [userId])
 
@@ -43,13 +46,14 @@ function SrsPanel({ userId, books, onStart }) {
     if (!settings) return
     let cancelled = false
     const t = setTimeout(async () => {
-      await saveSrsSettings(userId, settings)
       try {
+        const saved = await saveSrsSettings(userId, settings)
+        if (!saved) throw new Error('Could not save SRS settings')
         const s = await getSrsSummary(userId, settings)
         if (!cancelled) { setSummary(s); setSummaryError('') }
       } catch (err) {
         console.error('getSrsSummary error:', err)
-        if (!cancelled) setSummaryError('Hindi ma-load ang SRS data. I-run muna ang migration/28_srs_fsrs_tables.sql sa Supabase SQL Editor.')
+        if (!cancelled) setSummaryError('Could not save or load SRS data. Check your connection and SRS migration.')
       }
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
@@ -68,10 +72,12 @@ function SrsPanel({ userId, books, onStart }) {
   }
 
   if (!userId) return (
-    <Alert severity="info" sx={{ mb: 1.5 }}>Mag-login para magamit ang SRS. Naka-save per account ang schedule mo.</Alert>
+    <Alert severity="info" sx={{ mb: 1.5 }}>Sign in to use SRS. Your review schedule is saved to your account.</Alert>
   )
 
-  if (!settings) return <Box textAlign="center" py={3}><CircularProgress size={24} /></Box>
+  if (!settings) return summaryError
+    ? <Alert severity="error">{summaryError}</Alert>
+    : <Box textAlign="center" py={3}><CircularProgress size={24} /></Box>
 
   const newToShow = summary ? Math.min(summary.newRemaining, summary.newAvailable) : 0
   const nothingToDo = summary && summary.dueReviews + summary.dueLearning + newToShow === 0
@@ -80,7 +86,7 @@ function SrsPanel({ userId, books, onStart }) {
     <>
       <Card sx={{ mb: 1.5 }} elevation={0} variant="outlined">
         <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
-          <Typography fontWeight="bold" fontSize="12px" mb={1}>今日の復習 (Today)</Typography>
+          <Typography fontWeight="bold" fontSize="12px" mb={1}>Today's review</Typography>
           {summaryError ? (
             <Alert severity="error" sx={{ fontSize: '12px' }}>{summaryError}</Alert>
           ) : !summary ? (
@@ -157,7 +163,7 @@ function SrsPanel({ userId, books, onStart }) {
 
       <Button fullWidth variant="contained" disabled={!summary || nothingToDo} onClick={() => onStart(settings)}
         sx={{ backgroundColor: '#1a3a5c', py: 1, fontSize: '13px', fontWeight: 600, borderRadius: 2 }}>
-        {nothingToDo ? 'Walang due ngayon 🎉' : 'Start Today’s Review'}
+        {nothingToDo ? 'No cards due today 🎉' : 'Start Today’s Review'}
       </Button>
     </>
   )

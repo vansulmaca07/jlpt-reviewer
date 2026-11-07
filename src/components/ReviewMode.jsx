@@ -26,7 +26,7 @@ const MODES = [
   { id: 'flashcard', label: 'Flashcard', icon: <StyleIcon />, description: 'JP → EN flip cards', available: true },
   { id: 'conjugation', label: 'Conjugation', icon: <FitnessCenterIcon />, description: 'Test verb conjugations', available: true },
   { id: 'multiple', label: 'Multiple Choice', icon: <QuizIcon />, description: 'Pick the correct answer', available: true },
-  { id: 'reading', label: '読解', icon: <MenuBookIcon />, description: 'Reading comprehension', available: true },
+  { id: 'reading', label: 'Reading', icon: <MenuBookIcon />, description: 'Reading comprehension', available: true },
   { id: 'fillin', label: 'Fill in Blank', icon: <EditNoteIcon />, description: 'Complete the sentence', available: false },
 ]
 
@@ -172,7 +172,7 @@ function ReviewMode({ userId = null }) {
   return (
     <Box sx={{ maxWidth: 600, mx: 'auto' }}>
       {/* MODE SELECTION — horizontal scrollable chips */}
-      <Typography variant="subtitle2" fontWeight="bold" mb={1}>復習モード</Typography>
+      <Typography variant="subtitle2" fontWeight="bold" mb={1}>Review mode</Typography>
       <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, mb: 1.5, '&::-webkit-scrollbar': { display: 'none' } }}>
         {MODES.map(mode => (
           <Card

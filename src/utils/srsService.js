@@ -1,5 +1,6 @@
 import { fsrs, createEmptyCard, State } from 'ts-fsrs'
 import { supabase } from '../supabaseClient'
+import { newCardLimit, reviewWorkload, studyDayStart } from './srsMetrics'
 
 export const DEFAULT_SRS_SETTINGS = {
   newPerDay: 40,
@@ -7,17 +8,18 @@ export const DEFAULT_SRS_SETTINGS = {
   bookId: null,
   lessonFrom: null,
   lessonTo: null,
+  examDate: '2026-12-06',
+  bookTotals: {},
 }
 
 export const THROTTLE = {
   maxDueReviews: 250,
-  minRetention: 0.85,
+  minRetention: 0.75,
   minLogsForRetention: 30,
   throttledNewPerDay: 15,
 }
 
 export const LEECH_LAPSES = 6
-const DAY_ROLLOVER_HOUR = 4 // same as Anki: a "day" starts at 4 AM local time
 const PAGE_SIZE = 1000
 const IN_CHUNK = 100
 
@@ -28,10 +30,7 @@ export function createScheduler(retention = DEFAULT_SRS_SETTINGS.retention) {
 }
 
 export function dayStart(now = new Date()) {
-  const d = new Date(now)
-  d.setHours(DAY_ROLLOVER_HOUR, 0, 0, 0)
-  if (now < d) d.setDate(d.getDate() - 1)
-  return d
+  return studyDayStart(now)
 }
 
 export function nextDayStart(now = new Date()) {
@@ -111,7 +110,7 @@ function cardToRow(card) {
 
 export async function loadSrsSettings(userId) {
   const { data, error } = await supabase.from('profiles').select('srs_settings').eq('id', userId).maybeSingle()
-  if (error) console.error('loadSrsSettings error:', error)
+  if (error) throw error
   return { ...DEFAULT_SRS_SETTINGS, ...(data?.srs_settings || {}) }
 }
 
@@ -159,7 +158,7 @@ export async function getSrsSummary(userId, settings) {
   const logs = () => supabase.from('srs_review_logs').select('id', { count: 'exact', head: true })
     .eq('user_id', userId).eq('state', State.Review).gte('review', weekAgo)
 
-  const [dueRes, learnRes, newTodayRes, activeRes, knownRes, logTotalRes, logAgainRes, newIds] = await Promise.all([
+  const [dueRes, learnRes, newTodayRes, activeRes, knownRes, logTotalRes, logAgainRes, newIds, scheduledCards] = await Promise.all([
     base().eq('suspended', false).eq('state', State.Review).lt('due', cutoff),
     base().eq('suspended', false).in('state', [State.Learning, State.Relearning]).lt('due', cutoff),
     base().gte('created_at', today).in('first_rating', [1, 2, 3]),
@@ -168,20 +167,25 @@ export async function getSrsSummary(userId, settings) {
     logs(),
     logs().eq('rating', 1),
     getNewCandidateIds(userId, settings),
+    fetchAll(() => supabase.from('srs_cards').select('id, due, state, suspended')
+      .eq('user_id', userId).eq('suspended', false).order('id')),
   ])
 
+  for (const result of [dueRes, learnRes, newTodayRes, activeRes, knownRes, logTotalRes, logAgainRes]) {
+    if (result.error) throw result.error
+  }
+  const workload = reviewWorkload(scheduledCards, now)
   const dueReviews = dueRes.count || 0
   const logTotal = logTotalRes.count || 0
   const retention = logTotal >= THROTTLE.minLogsForRetention ? 1 - (logAgainRes.count || 0) / logTotal : null
 
-  let throttleReason = null
-  if (dueReviews > THROTTLE.maxDueReviews) throttleReason = `${dueReviews} reviews due (limit ${THROTTLE.maxDueReviews})`
-  else if (retention !== null && retention < THROTTLE.minRetention) throttleReason = `7-day retention ${Math.round(retention * 100)}% (< ${THROTTLE.minRetention * 100}%)`
-
-  const effectiveNewPerDay = throttleReason ? Math.min(settings.newPerDay, THROTTLE.throttledNewPerDay) : settings.newPerDay
+  const { throttleReason, effectiveNewPerDay } = newCardLimit({
+    dueReviews, reviewDebt: workload.reviewDebt, retention, newPerDay: settings.newPerDay,
+  }, THROTTLE)
   const newToday = newTodayRes.count || 0
 
   return {
+    ...workload,
     dueReviews,
     dueLearning: learnRes.count || 0,
     newToday,
@@ -194,6 +198,30 @@ export async function getSrsSummary(userId, settings) {
     newAvailable: newIds.length,
     newCandidateIds: newIds,
   }
+}
+
+export async function getSrsStatsData(userId) {
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+  const [cards, vocabulary, logs, books, settings] = await Promise.all([
+    fetchAll(() => supabase.from('srs_cards').select('*').eq('user_id', userId).order('id')),
+    fetchAll(() => supabase.from('vocabulary').select('id, word, reading, meaning, vocabulary_books(book_id, lesson_number)').order('id')),
+    fetchAll(() => supabase.from('srs_review_logs').select('id, vocab_id, rating, state, review')
+      .eq('user_id', userId).eq('state', State.Review).gte('review', weekAgo).order('id')),
+    fetchAll(() => supabase.from('books').select('id, book_name').order('id')),
+    loadSrsSettings(userId),
+  ])
+  return { cards, vocabulary, logs, books, settings, loadedAt: new Date() }
+}
+
+export async function getSrsWordDetails(userId, vocabId) {
+  const [vocabulary, logs] = await Promise.all([
+    fetchVocabByIds([vocabId]),
+    fetchAll(() => supabase.from('srs_review_logs').select('id, rating, state, review, scheduled_days, duration_ms')
+      .eq('user_id', userId).eq('vocab_id', vocabId).order('review', { ascending: false }).order('id')),
+  ])
+  const vocab = vocabulary.get(vocabId)
+  if (!vocab) throw new Error('This word is no longer available. Refresh the collection.')
+  return { vocab, logs }
 }
 
 async function fetchVocabByIds(ids) {

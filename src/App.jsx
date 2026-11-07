@@ -183,12 +183,12 @@ function App({ darkMode, setDarkMode }) {
           }}
           showLabels
         >
-          <BottomNavigationAction label="単語" icon={<TranslateIcon />} />
-          <BottomNavigationAction label="復習" icon={<SchoolIcon />} />
-          <BottomNavigationAction label="文法" icon={<MenuBookIcon />} />
-          <BottomNavigationAction label="統計" icon={<BarChartIcon />} />
+          <BottomNavigationAction label="Words" icon={<TranslateIcon />} />
+          <BottomNavigationAction label="Review" icon={<SchoolIcon />} />
+          <BottomNavigationAction label="Grammar" icon={<MenuBookIcon />} />
+          <BottomNavigationAction label="Stats" icon={<BarChartIcon />} />
           {isAdmin && (
-            <BottomNavigationAction label="追加" icon={<AddCircleOutlineIcon />} />
+            <BottomNavigationAction label="Add" icon={<AddCircleOutlineIcon />} />
           )}
         </BottomNavigation>
       </Paper>
